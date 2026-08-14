@@ -9,11 +9,11 @@
   :root{ --cyan:#00A7E1; --ok:#37e0a0; --warn:#ffb068; --ink:#eaf4fb; --dim:#9fc0d6; }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;overflow:hidden;background:#0b1622;
-    font-family:Inter,system-ui,sans-serif;color:var(--ink);-webkit-user-select:none;user-select:none}
+    font-family:Inter,system-ui,sans-serif;color:var(--ink);-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
   #viewport{width:100%;height:100%;position:relative}
   canvas{display:block;touch-action:none}
 
-  /* top bar */
+  /* Top bar */
   #top{position:fixed;top:0;left:0;right:0;z-index:5;padding:14px 18px;
     background:linear-gradient(180deg,#0b1622f2,#0b162200);pointer-events:none}
   #topInner{display:flex;align-items:center;gap:14px;max-width:1180px;margin:0 auto}
@@ -25,9 +25,9 @@
   #prog{flex:none;text-align:right;font-size:12px;color:var(--dim);line-height:1.4}
   #prog b{color:var(--ink);font-size:16px;font-weight:900}
   #bar{max-width:1180px;margin:11px auto 0;height:6px;border-radius:4px;background:#16304a;overflow:hidden}
-  #barFill{height:100%;width:0;border-radius:4px;background:linear-gradient(90deg,var(--cyan),var(--ok));transition:width .5s}
+  #barFill{height:100%;width:0;border-radius:4px;background:linear-gradient(90deg,var(--cyan),var(--ok));transition:width .5s cubic-bezier(.2,.9,.25,1)}
 
-  /* teaching card */
+  /* Teaching card */
   #card{position:fixed;left:18px;bottom:18px;z-index:6;width:min(400px,calc(100vw - 36px));
     background:linear-gradient(180deg,#0e2236f6,#0a1825f6);border:1px solid #1c3950;border-radius:18px;
     padding:16px 18px 15px;box-shadow:0 16px 44px #0009;border-left:4px solid var(--cyan);max-height:80vh;overflow-y:auto}
@@ -40,17 +40,18 @@
   #card .meta{margin-top:12px;padding-top:10px;border-top:1px solid #16324a;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   .chip{font:800 10.5px Inter;letter-spacing:.04em;text-transform:uppercase;
     border-radius:999px;padding:4px 9px;background:#123049;color:#8fc2e0;border:1px solid #1d4362}
-  .chip.face{color:#ffd9a8;border-color:#54402a;background:#2a2015}
   #card .refs{margin-top:8px;font:700 11px ui-monospace,Menlo,monospace;color:#6f96b1;line-height:1.5;word-break:break-word}
 
-  /* controls */
+  /* Controls */
   #ctl{position:fixed;right:18px;bottom:18px;z-index:6;display:flex;gap:9px;align-items:center}
   .btn{border:1px solid #244863;background:#102a40e6;color:var(--ink);border-radius:11px;
     padding:12px 16px;font:800 13.5px Inter;cursor:pointer;transition:.12s;white-space:nowrap}
   .btn:hover:not(:disabled){border-color:var(--cyan);background:#13405c}
+  .btn:disabled{opacity:0.5;cursor:not-allowed}
   .btn.pri{background:linear-gradient(180deg,#0d84b8,#0a6d99);border-color:#1ba0dc;color:#fff}
   .btn.sm{padding:10px 12px;font-size:13px}
 
+  /* View buttons */
   #viewBtns{position:fixed;top:80px;right:18px;z-index:6;display:flex;gap:6px}
   #status{position:fixed;top:82px;left:50%;transform:translateX(-50%);z-index:5;
     font:800 12.5px Inter;color:#bfe0f2;background:#0e2438dd;border:1px solid #244863;border-radius:999px;
@@ -67,7 +68,7 @@
     <div id="prog"><b id="pCount">1/8</b><br><span>build steps</span></div>
   </div><div id="bar"><div id="barFill"></div></div></div>
 
-  <div id="status">Centrage des modèles 3D...</div>
+  <div id="status">Chargement de la carte et des pièces...</div>
 
   <div id="viewBtns">
     <button class="btn sm" id="btnIso">ISO</button>
@@ -78,7 +79,7 @@
   <div id="card">
     <div class="ch"><span class="em" id="cEm">⚡</span><div><h3 id="cTitle"></h3><div class="what" id="cWhat"></div></div></div>
     <p id="cBlurb"></p>
-    <div class="meta"><span class="chip" id="cStage"></span><span class="chip face" id="cFace"></span></div>
+    <div class="meta"><span class="chip" id="cStage"></span><span class="chip" id="cFace"></span></div>
     <div class="refs" id="cRefs"></div>
   </div>
 
@@ -99,63 +100,64 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 const ASSETS = './assets/dexi-esc-explorer';
 
+// Textes exacts repris depuis tes captures d'écran
 const STEPS = [
   {
-    id:'bridges', em:'🔀', stage:'Power stage', face:'Top face',
+    em:'🔀', stage:'POWER STAGE', face:'ON BOTH FACES',
     title:'Six switches, in three pairs',
     what:'The MOSFETs — the muscle',
     refs:(m,ch)=>ch.fets,
-    blurb:`A MOSFET is just a <b>switch you turn on with a voltage</b>. Two of its legs are the switch itself; the third — the <b>gate</b> — is the handle. Six of them stack into <b>three pairs</b>.`,
+    blurb:`A MOSFET is just a <b>switch you turn on with a voltage</b>. Two of its legs are the switch itself; the third — the <b>gate</b> — is the handle. The gate behaves like a tiny bucket for electric charge: shove charge in and the switch closes, yank it out and it opens. Six of them stack into <b>three pairs</b>, one on top of the other. The point where each pair meets is a motor wire — a <b>phase</b>. Flip the top one on and that wire is pulled up to the battery; flip the bottom one on and it's pulled down to ground. Three phases, switched in the right order, is exactly what spins a brushless motor. One iron rule: the two switches in a pair must never be on together, or the battery is shorted straight to ground through both of them. Look closely — two of these three pairs are stacked <b>through the board</b>, one switch on top and its partner directly underneath.`
   },
   {
-    id:'loop', em:'🧱', stage:'Power stage', face:'Top face',
+    em:'🧱', stage:'POWER STAGE', face:'ON BOTH FACES',
     title:'Ceramics, packed in tight',
     what:'Local capacitors — the #1 thing that kills ESCs',
     refs:(m,ch)=>ch.loop_caps,
-    blurb:`Every time a switch flips, the current changes enormously in billionths of a second. The board puts capacitors <b>right up against the switches</b> to absorb voltage spikes.`,
+    blurb:`Every time a switch flips, the current through it has to change <b>enormously, in billionths of a second</b>. If that gulp of current has to travel from far away, the length of the wire fights back — that's inductance, and it answers with a <b>voltage spike</b> (V = L × di/dt). Big enough spike, and the switch is destroyed. So the board puts capacitors <b>right up against the switches</b> — a little charge reservoir millimetres away, so the loop the current runs around stays tiny. Boring parts. They are the difference between an ESC that lasts and an ESC that pops.`
   },
   {
-    id:'sense', em:'🚦', stage:'Measurement', face:'Top face',
+    em:'🚦', stage:'MEASUREMENT', face:'ON BOTH FACES',
     title:'The toll booth',
     what:'Shunt resistor + current-sense amplifier',
     refs:(m,ch)=>[...m.shared.shunts, m.shared.ina],
-    blurb:`To know how hard the motors work, a shunt resistor sits in the battery feed, paired with an amplifier to measure current via Kelvin sensing.`,
+    blurb:`To know how hard the motors are working, the board measures current — and the only way to measure current is to make it <b>squeeze through something</b>. That's the shunt: a deliberately, absurdly small resistor (<b>0.2 milliohms</b>, two in parallel = 0.1) sitting in the battery feed. Every amp that goes to the motors goes through it, and drops a <b>tiny voltage</b> — a tenth of a volt at a thousand amps' worth of squeeze. An amplifier right beside it magnifies that whisper 100×. The trick is <b>Kelvin sensing</b>: the two measuring wires carry no current of their own, so they read the resistor itself and not the copper leading up to it.`
   },
   {
-    id:'driver', em:'💪', stage:'Control', face:'Back face',
+    em:'💪', stage:'CONTROL', face:'BACK FACE',
     title:'The muscle chip',
     what:'Gate driver + bootstrap caps + gate resistors',
     refs:(m,ch)=>[ch.driver, ...ch.bootstrap, ...(ch.gate_res||[])],
-    blurb:`A driver chip slams charge into the MOSFET gates and rips it back out so the switches snap fully on and off instantly.`,
+    blurb:`Remember the gate is a <b>charge bucket</b>. A microcontroller pin can only trickle charge — the switch would spend ages half-on, and a half-on switch is a heater. So a driver chip sits between them and does the heavy lifting: it <b>slams</b> charge into the gate and <b>rips</b> it back out, so the switch snaps between fully on and fully off. It lives right next to the MOSFETs so the path is short. The little caps beside it are <b>bootstraps</b> — each upper switch floats up and down with its motor wire, so it needs its own private battery, topped up every time that wire swings low. The little resistors take the opposite side of the argument: they slow each edge a fraction, to tame the ringing a violently fast switch throws off.`
   },
   {
-    id:'mcu', em:'🧠', stage:'Control', face:'Back face',
+    em:'🧠', stage:'CONTROL', face:'BACK FACE',
     title:'The brain — one per motor',
     what:'Microcontroller running open-source AM32 firmware',
     refs:(m,ch)=>[ch.mcu, ...(ch.mcu_support||[])],
-    blurb:`This channel has its own computer running open-source AM32 firmware, performing sensorless commutation by listening to motor back-EMF.`,
+    blurb:`This channel has its <b>own little computer</b> — it isn't sharing one with the other three. It listens to the flight controller for a throttle number, then fires the six switches in sequence. But how does it know where the magnets in the motor are right now, with no position sensor anywhere? It <b>listens to the motor</b>. A spinning motor generates its own voltage (back-EMF), and the brain watches the one phase it isn't currently driving to feel the rotor go past — thousands of times a second. That's <b>sensorless commutation</b>, and the firmware doing it here is open source.`
   },
   {
-    id:'supply', em:'🪣', stage:'Supply', face:'Back face',
+    em:'🪣', stage:'SUPPLY', face:'BACK FACE',
     title:'Stepping the battery down — twice',
     what:'Buck converter → 10 V, then a regulator → 3.3 V',
-    refs:(m,ch)=>[m.shared.buck, m.shared.inductor, m.shared.ldo, ...m.shared.supply_support],
-    blurb:`A buck converter chops battery voltage down to 10V for the gate drivers, followed by an LDO regulator providing a clean 3.3V for the brain.`,
+    refs:(m,ch)=>[m.shared.buck, m.shared.inductor, m.shared.ldo, ...(m.shared.supply_support||[])],
+    blurb:`The battery can be 25 volts. The brain wants <b>3.3</b>. But the gate driver wants about <b>10</b> — because to hold a switch properly on you have to lift its gate well above the wire it's switching. So there are two steps. First a <b>buck converter</b>, which chops the battery on and off very fast and uses a coil to smooth the average down to 10 V — it throws almost nothing away as heat. Then a simpler regulator trims 10 V down to a clean, quiet 3.3 V for the brain. Everything on this board hangs off those two rails.`
   },
   {
-    id:'input', em:'🚪', stage:'Input', face:'Both faces',
+    em:'🚪', stage:'INPUT', face:'ON BOTH FACES',
     title:'The front door',
     what:'Battery pads, signal connector, surge protection',
-    refs:(m,ch)=>[m.shared.connector, ...m.shared.tvs, ...(m.placement.U3?['U3']:[])],
-    blurb:`Fat pads take the battery, TVS diodes absorb electrostatic surges, and a small connector carries throttle signals and telemetry from the flight controller.`,
+    refs:(m,ch)=>[m.shared.connector, ...m.shared.tvs, ...(m.placement&&m.placement.U3?['U3']:[])],
+    blurb:`Battery in, signals in. The fat pads take the battery — and the pilot solders a <b>big capacitor</b> right there, because the wires running back to the battery are long, and long wires spike (the same physics as step 2, at a bigger scale). The little clamps are <b>TVS diodes</b>: normally invisible, but if a surge arrives they short it to ground and take the hit themselves. The small connector carries the four throttle signals from the flight controller — plus telemetry back, sent <i>along the same wires</i>. Notice all of this is shared. Which is the whole point of the last step...`
   },
   {
-    id:'tile', em:'🧩', stage:'The 4-in-1', face:'Both faces',
+    em:'🧩', stage:'THE 4-IN-1', face:'ON BOTH FACES',
     title:'Now do that four times',
     what:'One channel per motor, tiled into quadrants',
     refs:()=>null,
-    blurb:`A 4-in-1 isn't one controller — it's <b>four complete ESCs sharing a board</b>. Switches live on the edges for cooling; brains sit safely in the middle.`,
-  },
+    blurb:`A "4-in-1" isn't one clever controller driving four motors — it's <b>four complete ESCs sharing a board</b>. Each quadrant is its own brain, its own driver, its own six switches. Look at where things sit: the switches live out on the <b>edges</b>, where the heat can escape and the motor wires are closest; brains and drivers hide in the <b>middle</b>, away from all that switching noise. Twenty-four switches won't fit on one face, so they're on <b>both</b> — the board is built on both sides. And the parts everybody shares — the supply, the current meter, the connector — are built once, in the centre.`
+  }
 ];
 
 const renderer = new THREE.WebGLRenderer({ antialias:true });
@@ -171,9 +173,10 @@ const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.001, 50
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.dampingFactor = 0.08;
 
-scene.add(new THREE.HemisphereLight(0xdcefff, 0x2f3f52, 0.55));
-scene.add(new THREE.AmbientLight(0xffffff, 0.3));
-const key = new THREE.DirectionalLight(0xfff4e2, 1.5);
+// Éclairage très doux pour bien voir la PCB
+scene.add(new THREE.HemisphereLight(0xdcefff, 0x2f3f52, 0.65));
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+const key = new THREE.DirectionalLight(0xfff4e2, 1.2);
 key.position.set(0.4, 0.8, 0.3);
 key.castShadow = true; scene.add(key);
 scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
@@ -182,7 +185,6 @@ let MAN = null, CH = null;
 const ROOT = new THREE.Group(); scene.add(ROOT);
 let boardRoot = null, partsRoot = null;
 const boardMats = [];
-const nodes = new Map();
 let stepIndex = 0;
 let flipped = false;
 
@@ -193,34 +195,28 @@ async function loadESC() {
   try {
     const res = await fetch(`${ASSETS}/esc-manifest.json`);
     MAN = await res.json();
-    CH = MAN.channels[0];
+    CH = MAN.channels[0]; // On se focalise sur le Canal 1 pour les étapes 1 à 7
 
     const [bRes, pRes] = await Promise.all([
       loader.loadAsync(`${ASSETS}/esc-board.glb`),
       loader.loadAsync(`${ASSETS}/esc-parts.glb`)
     ]);
 
+    // Préparation de la carte (PCB)
     boardRoot = bRes.scene;
     boardRoot.traverse(ch => {
       if (ch.isMesh && ch.material) {
         ch.material.transparent = true;
-        ch.material.opacity = 0.34;
         boardMats.push(ch.material);
       }
     });
     ROOT.add(boardRoot);
 
+    // Préparation des composants
     partsRoot = pRes.scene;
     ROOT.add(partsRoot);
 
-    partsRoot.traverse(ch => {
-      if (ch.name) {
-        nodes.set(ch.name, ch);
-        ch.visible = false; // Masqué par défaut pour le mode étape par étape
-      }
-    });
-
-    // Centrage automatique parfait basé sur la boîte englobante de la carte
+    // Centrage automatique sur l'écran
     const box = new THREE.Box3().setFromObject(boardRoot);
     const centre = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
@@ -246,8 +242,8 @@ loadESC();
 function showStep(idx) {
   stepIndex = idx;
   const step = STEPS[idx];
-  const refs = step.refs ? step.refs(MAN, CH) : null;
 
+  // 1. Mise à jour des textes
   document.getElementById('pCount').textContent = `${idx + 1}/8`;
   document.getElementById('barFill').style.width = `${((idx + 1) / 8) * 100}%`;
   document.getElementById('cEm').textContent = step.em;
@@ -255,59 +251,77 @@ function showStep(idx) {
   document.getElementById('cWhat').textContent = step.what;
   document.getElementById('cBlurb').innerHTML = step.blurb;
   document.getElementById('cStage').textContent = step.stage;
-  document.getElementById('cFace').textContent = step.face;
-  document.getElementById('cRefs').textContent = refs ? `on the board: ${refs.join(' ')}` : '+159 more parts: channels 2–4 & ceramic bank';
+  
+  // Style dynamique du badge de la face (Top/Back/Both)
+  const faceEl = document.getElementById('cFace');
+  faceEl.textContent = step.face;
+  if (step.face === 'BACK FACE') {
+    faceEl.style.color = '#ffd9a8'; faceEl.style.borderColor = '#54402a'; faceEl.style.background = '#2a2015';
+  } else if (step.face.includes('BOTH')) {
+    faceEl.style.color = '#ffb068'; faceEl.style.borderColor = '#664020'; faceEl.style.background = '#331a00';
+  } else {
+    faceEl.style.color = '#8fc2e0'; faceEl.style.borderColor = '#1d4362'; faceEl.style.background = '#123049';
+  }
 
-  // Opacité du PCB : semi-transparent avant la fin, plein à la fin
-  const op = (idx === STEPS.length - 1) ? 1.0 : 0.34;
+  // Refs texte en bas
+  const currentRefs = step.refs ? step.refs(MAN, CH) : null;
+  document.getElementById('cRefs').textContent = currentRefs ? `on the board: ${currentRefs.join(' ')}` : '+159 more parts: channels 2–4 and the rest of the ceramic bank';
+
+  // 2. Opacité de la PCB (Translucide pendant le montage, solide à la fin)
+  const op = (idx === STEPS.length - 1) ? 1.0 : 0.35;
   boardMats.forEach(m => m.opacity = op);
 
-  // Visibilité des pièces étape par étape
+  // 3. LOGIQUE D'AFFICHAGE CUMULATIVE DES COMPOSANTS
   if (idx === STEPS.length - 1) {
-    nodes.forEach(node => { node.visible = true; });
+    // Dernière étape : On affiche absolument TOUT
+    partsRoot.traverse(o => { o.visible = true; });
   } else {
-    nodes.forEach(node => { node.visible = false; });
-    if (refs) {
-      refs.forEach(ref => {
-        if (nodes.has(ref)) {
-          nodes.get(ref).visible = true;
-        }
-      });
+    // Étapes 1 à 7 : On masque tout d'abord
+    partsRoot.traverse(o => { 
+      if (o.name && !o.name.startsWith('=>')) o.visible = false; 
+    });
+    
+    // Puis on affiche les pièces de l'étape 0 JUSQU'À l'étape en cours (Effet d'accumulation)
+    for (let i = 0; i <= idx; i++) {
+      const stepRefs = STEPS[i].refs ? STEPS[i].refs(MAN, CH) : null;
+      if (stepRefs) {
+        stepRefs.forEach(ref => {
+          const node = partsRoot.getObjectByName(ref);
+          if (node) {
+            node.visible = true;
+            // On s'assure que toutes les sous-parties du composant sont aussi affichées
+            node.traverse(child => { child.visible = true; });
+          }
+        });
+      }
     }
   }
 
+  // 4. Mise à jour des boutons
   document.getElementById('btnBack').disabled = (idx === 0);
   document.getElementById('btnNext').textContent = (idx === STEPS.length - 1) ? 'Finish 🏆' : 'Next →';
 }
 
+// Contrôles UI
 document.getElementById('btnNext').onclick = () => {
   if (stepIndex < STEPS.length - 1) showStep(stepIndex + 1);
   else location.reload();
 };
-
 document.getElementById('btnBack').onclick = () => {
   if (stepIndex > 0) showStep(stepIndex - 1);
 };
-
 document.getElementById('btnIso').onclick = () => {
-  camera.position.set(0, 0.12, 0.18);
-  controls.target.set(0, 0, 0);
+  camera.position.set(0, 0.12, 0.18); controls.target.set(0, 0, 0);
 };
-
 document.getElementById('btnFront').onclick = () => {
-  camera.position.set(0, 0, 0.22);
-  controls.target.set(0, 0, 0);
+  camera.position.set(0, 0, 0.22); controls.target.set(0, 0, 0);
 };
-
 document.getElementById('btnFlip').onclick = () => {
   flipped = !flipped;
-  camera.position.y = flipped ? -0.15 : 0.15;
-  controls.target.set(0, 0, 0);
+  camera.position.y = flipped ? -0.15 : 0.15; controls.target.set(0, 0, 0);
 };
-
 document.getElementById('btnReframe').onclick = () => {
-  camera.position.set(0, 0.12, 0.18);
-  controls.target.set(0, 0, 0);
+  camera.position.set(0, 0.12, 0.18); controls.target.set(0, 0, 0);
 };
 
 window.addEventListener('resize', () => {
