@@ -2,126 +2,66 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>OpenESC — Visualiseur 4-en-1</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-<style>
-  :root{ --cyan:#00A7E1; --ok:#37e0a0; --ink:#eaf4fb; --dim:#9fc0d6; }
-  *{box-sizing:border-box}
-  html,body{margin:0;height:100%;overflow:hidden;background:#0b1622;font-family:Inter,sans-serif;color:var(--ink)}
-  #viewport{width:100%;height:100%;position:relative}
-  canvas{display:block;touch-action:none}
-  
-  #top{position:fixed;top:0;left:0;right:0;z-index:5;padding:14px 18px;background:linear-gradient(180deg,#0b1622f2,#0b162200)}
-  #card{position:fixed;left:18px;bottom:18px;z-index:6;width:400px;background:#0e2236f6;border-left:4px solid var(--cyan);padding:20px;border-radius:18px;box-shadow:0 10px 30px #000}
-  #ctl{position:fixed;right:18px;bottom:18px;z-index:6;display:flex;gap:10px}
-  .btn{padding:10px 20px;background:#16304a;color:white;border:1px solid #1c3950;border-radius:8px;cursor:pointer;font-weight:700}
-  .btn.pri{background:linear-gradient(180deg,#0d84b8,#0a6d99)}
-  #status{position:fixed;top:82px;left:50%;transform:translateX(-50%);z-index:5;color:var(--ok);background:#0e2438dd;padding:8px 16px;border-radius:20px}
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DEBUG — OpenESC</title>
+<script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.163.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.163.0/examples/jsm/" } }</script>
 </head>
-<body>
-  <div id="top"><h2>Build an OpenESC</h2></div>
-  <div id="status">Chargement...</div>
-  <div id="card">
-    <h3 id="cTitle">Chargement...</h3>
-    <div id="cWhat" style="color:var(--cyan); font-weight:bold; margin-bottom:10px"></div>
-    <p id="cBlurb"></p>
-    <div id="cRefs" style="font-family:monospace; font-size:0.7rem; color:#6f96b1; margin-top:10px; word-break:break-all"></div>
-  </div>
-  <div id="ctl">
-    <button class="btn" id="btnBack">← Back</button>
-    <button class="btn pri" id="btnNext">Next →</button>
-  </div>
-  <div id="viewport"></div>
-
-<script type="importmap">
-{ "imports": { "three": "https://unpkg.com/three@0.163.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.163.0/examples/jsm/" } }
-</script>
+<body style="background:#000; color:#fff; margin:0;">
+<div id="status" style="position:fixed; top:10px; left:10px; background:black; padding:10px;">Chargement...</div>
+<div id="viewport" style="width:100vw; height:100vh;"></div>
 
 <script type="module">
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 const ASSETS = './assets/dexi-esc-explorer';
-const STEPS = [
-  {title:'Six switches', what:'MOSFETs', refs:(m,ch)=>[...m.channels.flatMap(c=>c.fets)], blurb:'Installation des 6 MOSFETs par canal.'},
-  {title:'Capacitors', what:'Filtering', refs:(m,ch)=>[...m.channels.flatMap(c=>c.loop_caps)], blurb:'Condensateurs de découplage.'},
-  {title:'Shunts', what:'Current sensing', refs:(m,ch)=>[...m.shared.shunts, m.shared.ina], blurb:'Résistances de mesure de courant.'},
-  {title:'Drivers', what:'Gate drivers', refs:(m,ch)=>[...m.channels.flatMap(c=>[c.driver,...c.bootstrap,...(c.gate_res||[])])], blurb:'Pilotes de grille.'},
-  {title:'MCU', what:'Brains', refs:(m,ch)=>[...m.channels.flatMap(c=>[c.mcu,...(c.mcu_support||[])])], blurb:'Microcontrôleurs.'},
-  {title:'Regulation', what:'Power rails', refs:(m,ch)=>[m.shared.buck,m.shared.ldo,...(m.shared.supply_support||[])], blurb:'Régulateurs de tension.'},
-  {title:'Connectors', what:'Input/Output', refs:(m,ch)=>[m.shared.connector,...(m.shared.tvs||[])], blurb:'Connecteurs et protections TVS.'},
-  {title:'Full Assembly', what:'Ready to fly', refs:()=>null, blurb:'Assemblage complet.'}
-];
-
 const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(innerWidth, innerHeight);
 document.getElementById('viewport').appendChild(renderer.domElement);
 
-const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0b1622);
-const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.01, 50);
-camera.position.set(0.2, 0.2, 0.2);
-const controls = new OrbitControls(camera, renderer.domElement);
-scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-scene.add(new THREE.DirectionalLight(0xffffff, 1));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.01, 100);
+camera.position.set(0, 0, 0.5);
 
-let MAN=null, CH=null;
-const ROOT = new THREE.Group(); scene.add(ROOT);
-let nodes = new Map();
-let stepIndex = 0;
+scene.add(new THREE.AmbientLight(0xffffff, 2));
 
-const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-
-async function load() {
-  const [mRes, bRes, pRes] = await Promise.all([
-    fetch(`${ASSETS}/esc-manifest.json`),
-    loader.loadAsync(`${ASSETS}/esc-board.glb`),
-    loader.loadAsync(`${ASSETS}/esc-parts.glb`)
-  ]);
-  MAN = await mRes.json();
-  CH = MAN.channels[0];
-  ROOT.add(bRes.scene);
-  ROOT.add(pRes.scene);
-  
-  // Masquer TOUS les composants initialement
-  pRes.scene.traverse(ch => { if(ch.name) { nodes.set(ch.name, ch); ch.visible = false; } });
-  
-  document.getElementById('status').style.display = 'none';
-  showStep(0);
-}
-
-function showStep(idx) {
-  stepIndex = idx;
-  const step = STEPS[idx];
-  const refs = step.refs ? step.refs(MAN, CH) : null;
-  
-  document.getElementById('cTitle').textContent = step.title;
-  document.getElementById('cWhat').textContent = step.what;
-  document.getElementById('cBlurb').innerHTML = step.blurb;
-  document.getElementById('cRefs').textContent = refs ? `Refs: ${refs.join(', ')}` : "Tous composants";
-
-  // Réinitialiser la visibilité
-  if (idx === 7) {
-    nodes.forEach(n => n.visible = true);
-  } else {
-    nodes.forEach(n => n.visible = false);
-    if (refs) {
-      refs.forEach(r => {
-        if(nodes.has(r)) nodes.get(r).visible = true;
-        else console.warn("Composant manquant dans le fichier 3D :", r);
-      });
+async function debugLoad() {
+    const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+    const status = document.getElementById('status');
+    
+    try {
+        console.log("Tentative de chargement de :", ASSETS);
+        
+        // Tester le chargement des deux fichiers
+        const board = await loader.loadAsync(`${ASSETS}/esc-board.glb`);
+        console.log("✅ esc-board.glb chargé avec succès");
+        scene.add(board.scene);
+        
+        const parts = await loader.loadAsync(`${ASSETS}/esc-parts.glb`);
+        console.log("✅ esc-parts.glb chargé avec succès");
+        
+        let count = 0;
+        parts.scene.traverse(node => {
+            if (node.isMesh) {
+                node.visible = true; // Forcer la visibilité
+                count++;
+            }
+        });
+        
+        scene.add(parts.scene);
+        status.textContent = `Succès ! Pièces chargées : ${count}`;
+        console.log("Nombre de meshes trouvés dans parts:", count);
+        
+    } catch (e) {
+        status.textContent = "ERREUR : Voir console (F12)";
+        console.error("Erreur de chargement complète :", e);
     }
-  }
 }
 
-document.getElementById('btnNext').onclick = () => { if(stepIndex < 7) showStep(++stepIndex); };
-document.getElementById('btnBack').onclick = () => { if(stepIndex > 0) showStep(--stepIndex); };
+debugLoad();
 
-load();
-function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); }
 animate();
 </script>
 </body>
