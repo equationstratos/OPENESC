@@ -117,13 +117,12 @@ const ROOT = new THREE.Group();
 scene.add(ROOT);
 
 let boardRoot = null, partsRoot = null;
+let globalManifest = null, globalChannel = null;
 const boardMats = [];
 const nodes = new Map();
-let boardRadius = 0.03;
 let currentStep = 0;
 let flipped = false;
 
-// Étapes pédagogiques de montage de l'ESC
 const STEPS = [
   { title: "Les MOSFETs de Puissance", what: "L'étage de commutation (6 switches par canal)", blurb: "Les transistors MOSFET délivrent le courant massif vers les phases du moteur brushless." },
   { title: "Les Condensateurs de Local Loop", what: "Filtrage local anti-pics de tension", blurb: "Placés au plus près des interrupteurs pour absorber les microsecondes de surtension destructrice." },
@@ -141,8 +140,8 @@ loader.setMeshoptDecoder(MeshoptDecoder);
 async function initESC() {
   try {
     const res = await fetch(`${ASSETS}/esc-manifest.json`);
-    const MAN = await res.json();
-    const CH = MAN.channels[0];
+    globalManifest = await res.json();
+    globalChannel = globalManifest.channels[0];
 
     const [boardGltf, partsGltf] = await Promise.all([
       loader.loadAsync(`${ASSETS}/esc-board.glb`),
@@ -153,7 +152,7 @@ async function initESC() {
     boardRoot.traverse(ch => {
       if (ch.isMesh && ch.material) {
         ch.material.transparent = true;
-        ch.material.opacity = 0.35; // PCB semi-transparent au début
+        ch.material.opacity = 0.35;
         boardMats.push(ch.material);
       }
     });
@@ -166,7 +165,6 @@ async function initESC() {
       if (ch.name) {
         const home = ch.position.clone();
         nodes.set(ch.name, { obj: ch, home });
-        // Masquer les pièces au départ pour les faire apparaître progressivement
         ch.visible = false;
       }
     });
@@ -174,24 +172,27 @@ async function initESC() {
     document.getElementById('status').textContent = "✓ Prêt à assembler";
     setTimeout(() => document.getElementById('status').style.display = 'none', 2000);
     
-    updateStep(0, MAN, CH);
+    updateStep(0);
   } catch (e) {
-    document.getElementById('status').textContent = "Erreur de chargement des assets ESC";
+    document.getElementById('status').textContent = "Erreur chargement assets ESC";
     console.error(e);
   }
 }
 
 initESC();
 
-function updateStep(idx, man, ch) {
+function updateStep(idx) {
   currentStep = idx;
   const s = STEPS[idx];
   document.getElementById('cTitle').textContent = s.title;
   document.getElementById('cWhat').textContent = s.what;
   document.getElementById('cBlurb').textContent = s.blurb;
 
-  // Sélectionner les composants à afficher selon l'étape
   let targetRefs = [];
+  if (!globalManifest) return;
+  const ch = globalChannel;
+  const man = globalManifest;
+
   if (idx === 0) targetRefs = ch.fets;
   else if (idx === 1) targetRefs = ch.loop_caps;
   else if (idx === 2) targetRefs = [...man.shared.shunts, man.shared.ina];
@@ -200,15 +201,11 @@ function updateStep(idx, man, ch) {
   else if (idx === 5) targetRefs = [man.shared.buck, man.shared.ldo];
   else if (idx === 6) targetRefs = [man.shared.connector, ...man.shared.tvs];
   else {
-    // Tout afficher à la fin
-    nodes.forEach((data) => {
-      data.obj.visible = true;
-    });
+    nodes.forEach((data) => { data.obj.visible = true; });
     boardMats.forEach(m => m.opacity = 1.0);
     return;
   }
 
-  // Activer et animer l'apparition des composants de l'étape
   targetRefs.forEach(ref => {
     const item = nodes.get(ref);
     if (item) {
@@ -223,10 +220,10 @@ function updateStep(idx, man, ch) {
 
 document.getElementById('btn-next').onclick = () => {
   if (currentStep < STEPS.length - 1) {
-    updateStep(currentStep + 1, window.MAN, window.CH);
+    updateStep(currentStep + 1);
   } else {
     currentStep = -1;
-    updateStep(0, window.MAN, window.CH);
+    updateStep(0);
   }
 };
 
