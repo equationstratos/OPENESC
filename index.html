@@ -188,24 +188,28 @@ function updateStep(idx) {
   document.getElementById('cWhat').textContent = s.what;
   document.getElementById('cBlurb').textContent = s.blurb;
 
-  let targetRefs = [];
-  if (!globalManifest) return;
-  const ch = globalChannel;
+  // On récupère le manifeste et le canal courant
   const man = globalManifest;
+  const ch = globalChannel;
 
+  let targetRefs = [];
+  
+  // Logique de sélection des composants par étape
   if (idx === 0) targetRefs = ch.fets;
   else if (idx === 1) targetRefs = ch.loop_caps;
   else if (idx === 2) targetRefs = [...man.shared.shunts, man.shared.ina];
-  else if (idx === 3) targetRefs = [ch.driver, ...ch.bootstrap];
-  else if (idx === 4) targetRefs = [ch.mcu];
-  else if (idx === 5) targetRefs = [man.shared.buck, man.shared.ldo];
+  else if (idx === 3) targetRefs = [ch.driver, ...ch.bootstrap, ...ch.gate_res];
+  else if (idx === 4) targetRefs = [ch.mcu, ...ch.mcu_support];
+  else if (idx === 5) targetRefs = [man.shared.buck, man.shared.ldo, ...man.shared.supply_support];
   else if (idx === 6) targetRefs = [man.shared.connector, ...man.shared.tvs];
   else {
+    // Si c'est la dernière étape, on affiche tout ce qui reste
     nodes.forEach((data) => { data.obj.visible = true; });
     boardMats.forEach(m => m.opacity = 1.0);
     return;
   }
 
+  // Animation d'apparition
   targetRefs.forEach(ref => {
     const item = nodes.get(ref);
     if (item) {
@@ -214,10 +218,11 @@ function updateStep(idx) {
         { y: item.home.y + 0.015 }, 
         { y: item.home.y, duration: 0.8, ease: "power2.out" }
       );
+    } else {
+      console.warn("Composant non trouvé dans parts.glb :", ref);
     }
   });
 }
-
 document.getElementById('btn-next').onclick = () => {
   if (currentStep < STEPS.length - 1) {
     updateStep(currentStep + 1);
