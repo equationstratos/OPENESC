@@ -3,297 +3,125 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>Build an ESC — DEXI Ground School</title>
+<title>OpenESC — Visualiseur 4-en-1</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-  :root{ --cyan:#00A7E1; --ok:#37e0a0; --warn:#ffb068; --ink:#eaf4fb; --dim:#9fc0d6; }
+  :root{ --cyan:#00A7E1; --ok:#37e0a0; --ink:#eaf4fb; --dim:#9fc0d6; }
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%;overflow:hidden;background:#0b1622;
-    font-family:Inter,system-ui,sans-serif;color:var(--ink);-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:#0b1622;font-family:Inter,sans-serif;color:var(--ink)}
   #viewport{width:100%;height:100%;position:relative}
   canvas{display:block;touch-action:none}
-
-  /* top bar */
-  #top{position:fixed;top:0;left:0;right:0;z-index:5;padding:14px 18px;
-    background:linear-gradient(180deg,#0b1622f2,#0b162200);pointer-events:none}
-  #topInner{display:flex;align-items:center;gap:14px;max-width:1180px;margin:0 auto}
-  #logo{flex:none;width:44px;height:44px;border-radius:12px;background:var(--cyan);color:#04222f;
-    display:grid;place-items:center;font-size:22px;box-shadow:0 6px 18px #00a7e155}
-  #ttl{flex:1;min-width:0}
-  #ttl b{font-size:17px;font-weight:900;display:block;line-height:1.15}
-  #ttl span{font-size:12.5px;color:var(--dim)}
-  #prog{flex:none;text-align:right;font-size:12px;color:var(--dim);line-height:1.4}
-  #prog b{color:var(--ink);font-size:16px;font-weight:900}
-  #bar{max-width:1180px;margin:11px auto 0;height:6px;border-radius:4px;background:#16304a;overflow:hidden}
-  #barFill{height:100%;width:0;border-radius:4px;background:linear-gradient(90deg,var(--cyan),var(--ok));transition:width .5s cubic-bezier(.2,.9,.25,1)}
-
-  /* teaching card */
-  #card{position:fixed;left:18px;bottom:18px;z-index:6;width:min(400px,calc(100vw - 36px));
-    background:linear-gradient(180deg,#0e2236f6,#0a1825f6);border:1px solid #1c3950;border-radius:18px;
-    padding:16px 18px 15px;box-shadow:0 16px 44px #0009;border-left:4px solid var(--cyan);max-height:80vh;overflow-y:auto}
-  #card .ch{display:flex;align-items:flex-start;gap:11px}
-  #card .em{font-size:26px;line-height:1.05}
-  #card h3{margin:0;font-size:18.5px;font-weight:900;letter-spacing:-.015em;line-height:1.2}
-  #card .what{font-size:13px;color:var(--cyan);font-weight:800;margin-top:3px}
-  #card p{font-size:13.6px;color:#c4dced;line-height:1.55;margin:11px 0 0}
-  #card p b{color:#fff;font-weight:800}
-  #card .meta{margin-top:12px;padding-top:10px;border-top:1px solid #16324a;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  .chip{font:800 10.5px Inter;letter-spacing:.04em;text-transform:uppercase;
-    border-radius:999px;padding:4px 9px;background:#123049;color:#8fc2e0;border:1px solid #1d4362}
-  .chip.face{color:#ffd9a8;border-color:#54402a;background:#2a2015}
-  #card .refs{margin-top:8px;font:700 11px ui-monospace,Menlo,monospace;color:#6f96b1;line-height:1.5;word-break:break-word}
-
-  /* controls */
-  #ctl{position:fixed;right:18px;bottom:18px;z-index:6;display:flex;gap:9px;align-items:center}
-  .btn{border:1px solid #244863;background:#102a40e6;color:var(--ink);border-radius:11px;
-    padding:12px 16px;font:800 13.5px Inter;cursor:pointer;transition:.12s;white-space:nowrap}
-  .btn:hover:not(:disabled){border-color:var(--cyan);background:#13405c}
-  .btn.pri{background:linear-gradient(180deg,#0d84b8,#0a6d99);border-color:#1ba0dc;color:#fff}
-  .btn.sm{padding:10px 12px;font-size:13px}
-
-  /* view buttons top right */
-  #viewBtns{position:fixed;top:80px;right:18px;z-index:6;display:flex;gap:6px}
-  #status{position:fixed;top:82px;left:50%;transform:translateX(-50%);z-index:5;
-    font:800 12.5px Inter;color:#bfe0f2;background:#0e2438dd;border:1px solid #244863;border-radius:999px;
-    padding:7px 16px;text-align:center}
+  
+  #top{position:fixed;top:0;left:0;right:0;z-index:5;padding:14px 18px;background:linear-gradient(180deg,#0b1622f2,#0b162200)}
+  #card{position:fixed;left:18px;bottom:18px;z-index:6;width:400px;background:#0e2236f6;border-left:4px solid var(--cyan);padding:20px;border-radius:18px;box-shadow:0 10px 30px #000}
+  #ctl{position:fixed;right:18px;bottom:18px;z-index:6;display:flex;gap:10px}
+  .btn{padding:10px 20px;background:#16304a;color:white;border:1px solid #1c3950;border-radius:8px;cursor:pointer;font-weight:700}
+  .btn.pri{background:linear-gradient(180deg,#0d84b8,#0a6d99)}
+  #status{position:fixed;top:82px;left:50%;transform:translateX(-50%);z-index:5;color:var(--ok);background:#0e2438dd;padding:8px 16px;border-radius:20px}
 </style>
-<script type="importmap">
-{ "imports": { "three": "https://unpkg.com/three@0.163.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.163.0/examples/jsm/" } }
-</script>
 </head>
 <body>
-  <div id="top"><div id="topInner">
-    <div id="logo">⚡</div>
-    <div id="ttl"><b>Build an ESC</b><span>One motor channel, one part at a time — then × 4</span></div>
-    <div id="prog"><b id="pCount">1/8</b><br><span>build steps</span></div>
-  </div><div id="bar"><div id="barFill"></div></div></div>
-
-  <div id="status">Chargement des composants OpenESC...</div>
-
-  <div id="viewBtns">
-    <button class="btn sm" id="btnIso">ISO</button>
-    <button class="btn sm" id="btnFront">Front</button>
-    <button class="btn sm" id="btnFlip">🔄 Flip</button>
-  </div>
-
+  <div id="top"><h2>Build an OpenESC</h2></div>
+  <div id="status">Chargement...</div>
   <div id="card">
-    <div class="ch"><span class="em" id="cEm">⚡</span><div><h3 id="cTitle"></h3><div class="what" id="cWhat"></div></div></div>
+    <h3 id="cTitle">Chargement...</h3>
+    <div id="cWhat" style="color:var(--cyan); font-weight:bold; margin-bottom:10px"></div>
     <p id="cBlurb"></p>
-    <div class="meta"><span class="chip" id="cStage"></span><span class="chip face" id="cFace"></span></div>
-    <div class="refs" id="cRefs"></div>
+    <div id="cRefs" style="font-family:monospace; font-size:0.7rem; color:#6f96b1; margin-top:10px; word-break:break-all"></div>
   </div>
-
-  <div id="viewport"></div>
-
   <div id="ctl">
-    <button class="btn sm" id="btnReframe">🎯 Re-frame</button>
     <button class="btn" id="btnBack">← Back</button>
     <button class="btn pri" id="btnNext">Next →</button>
   </div>
+  <div id="viewport"></div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.163.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.163.0/examples/jsm/" } }
+</script>
 
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 const ASSETS = './assets/dexi-esc-explorer';
-
 const STEPS = [
-  {
-    id:'bridges', em:'🔀', stage:'POWER STAGE', face:'TOP FACE',
-    title:'Six switches, in three pairs (M1 to M4)',
-    what:'The MOSFETs — the muscle',
-    blurb:`A MOSFET is just a <b>switch you turn on with a voltage</b>. Two of its legs are the switch itself; the third — the <b>gate</b> — is the handle. Six of them stack into <b>three pairs</b>.`,
-    refs:'Q1 Q11 Q16 Q2 Q21 Q6 Q12 Q17 Q22 Q3 Q7 Q8 Q13 Q14 Q18 Q23 Q4 Q9 Q10 Q15 Q19 Q20 Q24 Q5'
-  },
-  {
-    id:'loop', em:'🧱', stage:'POWER STAGE', face:'TOP FACE',
-    title:'Ceramics, packed in tight',
-    what:'Local capacitors — the #1 thing that kills ESCs',
-    blurb:`Every time a switch flips, the current changes enormously in billionths of a second. The board puts capacitors <b>right up against the switches</b> to absorb voltage spikes.`,
-    refs:'C108 C107 C3 C105 C74 C106 C84 C83'
-  },
-  {
-    id:'sense', em:'🚦', stage:'MEASUREMENT', face:'TOP FACE',
-    title:'The toll booth',
-    what:'Shunt resistor + current-sense amplifier',
-    blurb:`To know how hard the motors work, a shunt resistor (0.2 milliohms) sits in the battery feed, paired with an amplifier to measure current via Kelvin sensing.`,
-    refs:'Rsense1 Rsense2 U12'
-  },
-  {
-    id:'driver', em:'💪', stage:'CONTROL', face:'BACK FACE',
-    title:'The muscle chip',
-    what:'Gate driver + bootstrap caps + gate resistors',
-    blurb:`A driver chip slams charge into the MOSFET gates and rips it back out so the switches snap fully on and off instantly.`,
-    refs:'U4 C32 C36 C53 R23 R42 R55 R76 R80'
-  },
-  {
-    id:'mcu', em:'🧠', stage:'CONTROL', face:'BACK FACE',
-    title:'The brain — one per motor',
-    what:'Microcontroller running open-source AM32 firmware',
-    blurb:`This channel has its own computer running open-source AM32 firmware, performing sensorless commutation by listening to motor back-EMF.`,
-    refs:'U2 C48 C49 C50 C57'
-  },
-  {
-    id:'supply', em:'🪣', stage:'SUPPLY', face:'BACK FACE',
-    title:'Stepping the battery down — twice',
-    what:'Buck converter → 10 V, then a regulator → 3.3 V',
-    blurb:`A buck converter chops battery voltage down to 10V for the gate drivers, followed by an LDO regulator providing a clean 3.3V for the brain.`,
-    refs:'U13 U14 U15 C4 C47 C51 C75 C76 C81 C86 C93 C94'
-  },
-  {
-    id:'input', em:'🚪', stage:'INPUT', face:'BOTH FACES',
-    title:'The front door',
-    what:'Battery pads, signal connector, surge protection',
-    blurb:`Fat pads take the battery, TVS diodes absorb electrostatic surges, and a small connector carries throttle signals and telemetry from the flight controller.`,
-    refs:'J1 D1 D2 D3'
-  },
-  {
-    id:'tile', em:'🧩', stage:'THE 4-IN-1', face:'BOTH FACES',
-    title:'Now do that four times',
-    what:'One channel per motor, tiled into quadrants',
-    blurb:`A 4-in-1 isn't one controller — it's <b>four complete ESCs sharing a board</b>. Switches live on the edges for cooling; brains sit safely in the middle.`,
-    refs:'+159 more parts: channels 2–4 and the rest of the ceramic bank'
-  },
+  {title:'Six switches', what:'MOSFETs', refs:(m,ch)=>[...m.channels.flatMap(c=>c.fets)], blurb:'Installation des 6 MOSFETs par canal.'},
+  {title:'Capacitors', what:'Filtering', refs:(m,ch)=>[...m.channels.flatMap(c=>c.loop_caps)], blurb:'Condensateurs de découplage.'},
+  {title:'Shunts', what:'Current sensing', refs:(m,ch)=>[...m.shared.shunts, m.shared.ina], blurb:'Résistances de mesure de courant.'},
+  {title:'Drivers', what:'Gate drivers', refs:(m,ch)=>[...m.channels.flatMap(c=>[c.driver,...c.bootstrap,...(c.gate_res||[])])], blurb:'Pilotes de grille.'},
+  {title:'MCU', what:'Brains', refs:(m,ch)=>[...m.channels.flatMap(c=>[c.mcu,...(c.mcu_support||[])])], blurb:'Microcontrôleurs.'},
+  {title:'Regulation', what:'Power rails', refs:(m,ch)=>[m.shared.buck,m.shared.ldo,...(m.shared.supply_support||[])], blurb:'Régulateurs de tension.'},
+  {title:'Connectors', what:'Input/Output', refs:(m,ch)=>[m.shared.connector,...(m.shared.tvs||[])], blurb:'Connecteurs et protections TVS.'},
+  {title:'Full Assembly', what:'Ready to fly', refs:()=>null, blurb:'Assemblage complet.'}
 ];
 
-const renderer = new THREE.WebGLRenderer({ antialias:true });
-renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
 document.getElementById('viewport').appendChild(renderer.domElement);
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0b1622);
-const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.001, 50);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0b1622);
+const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.01, 50);
+camera.position.set(0.2, 0.2, 0.2);
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; controls.dampingFactor = 0.08;
+scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+scene.add(new THREE.DirectionalLight(0xffffff, 1));
 
-scene.add(new THREE.HemisphereLight(0xdcefff, 0x2f3f52, 0.55));
-scene.add(new THREE.AmbientLight(0xffffff, 0.16));
-const key = new THREE.DirectionalLight(0xfff4e2, 1.5);
-key.castShadow = true; scene.add(key);
-scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
-
+let MAN=null, CH=null;
 const ROOT = new THREE.Group(); scene.add(ROOT);
-let boardRoot = null, partsRoot = null;
-const boardMats = [];
+let nodes = new Map();
 let stepIndex = 0;
-let flipped = false;
 
-const loader = new GLTFLoader();
-loader.setMeshoptDecoder(MeshoptDecoder);
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 
-async function loadESC() {
-  try {
-    const [bRes, pRes] = await Promise.all([
-      loader.loadAsync(`${ASSETS}/esc-board.glb`),
-      loader.loadAsync(`${ASSETS}/esc-parts.glb`)
-    ]);
-
-    boardRoot = bRes.scene;
-    boardRoot.traverse(ch => {
-      if (ch.isMesh && ch.material) {
-        ch.material.transparent = true;
-        ch.material.opacity = 0.34;
-        boardMats.push(ch.material);
-      }
-    });
-    ROOT.add(boardRoot);
-
-    partsRoot = pRes.scene;
-    ROOT.add(partsRoot);
-    // Au départ, on affiche les pièces (ou on ajuste leur visibilité globale)
-    partsRoot.visible = true;
-
-    const box = new THREE.Box3().setFromObject(boardRoot);
-    const centre = box.getCenter(new THREE.Vector3());
-    boardRoot.position.sub(centre);
-    partsRoot.position.sub(centre);
-    controls.target.set(0, 0, 0);
-    camera.position.set(0, 0.12, 0.18);
-
-    document.getElementById('status').style.display = 'none';
-    showStep(0);
-  } catch (err) {
-    document.getElementById('status').textContent = "Erreur chargement: " + err.message;
-    console.error(err);
-  }
+async function load() {
+  const [mRes, bRes, pRes] = await Promise.all([
+    fetch(`${ASSETS}/esc-manifest.json`),
+    loader.loadAsync(`${ASSETS}/esc-board.glb`),
+    loader.loadAsync(`${ASSETS}/esc-parts.glb`)
+  ]);
+  MAN = await mRes.json();
+  CH = MAN.channels[0];
+  ROOT.add(bRes.scene);
+  ROOT.add(pRes.scene);
+  
+  // Masquer TOUS les composants initialement
+  pRes.scene.traverse(ch => { if(ch.name) { nodes.set(ch.name, ch); ch.visible = false; } });
+  
+  document.getElementById('status').style.display = 'none';
+  showStep(0);
 }
-
-loadESC();
 
 function showStep(idx) {
   stepIndex = idx;
   const step = STEPS[idx];
-
-  document.getElementById('pCount').textContent = `${idx + 1}/8`;
-  document.getElementById('barFill').style.width = `${((idx + 1) / 8) * 100}%`;
-  document.getElementById('cEm').textContent = step.em;
+  const refs = step.refs ? step.refs(MAN, CH) : null;
+  
   document.getElementById('cTitle').textContent = step.title;
   document.getElementById('cWhat').textContent = step.what;
   document.getElementById('cBlurb').innerHTML = step.blurb;
-  document.getElementById('cStage').textContent = step.stage;
-  document.getElementById('cFace').textContent = step.face;
-  document.getElementById('cRefs').textContent = `on the board: ${step.refs}`;
+  document.getElementById('cRefs').textContent = refs ? `Refs: ${refs.join(', ')}` : "Tous composants";
 
-  // Opacité du PCB : plein pot à la dernière étape, ghosté avant
-  const op = (idx === STEPS.length - 1) ? 1.0 : 0.34;
-  boardMats.forEach(m => m.opacity = op);
-
-  // À la dernière étape, tout s'illumine/s'affiche à 100%
-  if (partsRoot) {
-    partsRoot.visible = true;
+  // Réinitialiser la visibilité
+  if (idx === 7) {
+    nodes.forEach(n => n.visible = true);
+  } else {
+    nodes.forEach(n => n.visible = false);
+    if (refs) {
+      refs.forEach(r => {
+        if(nodes.has(r)) nodes.get(r).visible = true;
+        else console.warn("Composant manquant dans le fichier 3D :", r);
+      });
+    }
   }
-
-  document.getElementById('btnBack').disabled = (idx === 0);
-  document.getElementById('btnNext').textContent = (idx === STEPS.length - 1) ? 'Finish 🏆' : 'Next →';
 }
 
-document.getElementById('btnNext').onclick = () => {
-  if (stepIndex < STEPS.length - 1) showStep(stepIndex + 1);
-  else location.reload();
-};
+document.getElementById('btnNext').onclick = () => { if(stepIndex < 7) showStep(++stepIndex); };
+document.getElementById('btnBack').onclick = () => { if(stepIndex > 0) showStep(--stepIndex); };
 
-document.getElementById('btnBack').onclick = () => {
-  if (stepIndex > 0) showStep(stepIndex - 1);
-};
-
-document.getElementById('btnIso').onclick = () => {
-  camera.position.set(0, 0.12, 0.18);
-  controls.target.set(0, 0, 0);
-};
-
-document.getElementById('btnFront').onclick = () => {
-  camera.position.set(0, 0, 0.22);
-  controls.target.set(0, 0, 0);
-};
-
-document.getElementById('btnFlip').onclick = () => {
-  flipped = !flipped;
-  camera.position.y = flipped ? -0.15 : 0.15;
-  controls.target.set(0, 0, 0);
-};
-
-document.getElementById('btnReframe').onclick = () => {
-  camera.position.set(0, 0.12, 0.18);
-  controls.target.set(0, 0, 0);
-};
-
-window.addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
-
-function animate() {
-  requestAnimationFrame(animate);
-  controls.update();
-  renderer.render(scene, camera);
-}
+load();
+function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
 animate();
 </script>
 </body>
