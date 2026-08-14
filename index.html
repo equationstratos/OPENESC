@@ -103,59 +103,59 @@ const ASSETS = './assets/dexi-esc-explorer';
 const STEPS = [
   {
     id:'bridges', em:'🔀', stage:'Power stage',
-    title:'Six switches, in three pairs',
-    what:'The MOSFETs — the muscle',
-    refs:(m,ch)=>ch.fets,
-    blurb:`A MOSFET is just a <b>switch you turn on with a voltage</b>. Two of its legs are the switch itself; the third — the <b>gate</b> — is the handle. Six of them stack into <b>three pairs</b>. The point where each pair meets is a motor wire — a <b>phase</b>.`,
+    title:'Six switches, in three pairs (M1 to M4)',
+    what:'The MOSFETs — repeated for each motor channel',
+    refs:(m,ch)=>[...m.channels.flatMap(c => c.fets)],
+    blurb:`Un ESC 4-en-1 répète la même structure de puissance pour chaque moteur. Les transistors MOSFET s'installent tour à tour sur les 4 quadrants de la carte pour former les trois phases de chaque canal.`,
   },
   {
     id:'loop', em:'🧱', stage:'Power stage',
     title:'Ceramics, packed in tight',
-    what:'Local capacitors — the #1 thing that kills ESCs',
-    refs:(m,ch)=>ch.loop_caps,
-    blurb:`Every time a switch flips, the current changes enormously in billionths of a second. The board puts capacitors <b>right up against the switches</b> to absorb voltage spikes (V = L × di/dt).`,
+    what:'Local capacitors across all channels',
+    refs:(m,ch)=>[...m.channels.flatMap(c => c.loop_caps)],
+    blurb:`Chaque canal de commutation embarque ses propres condensateurs de découplage au plus près des MOSFETs pour étouffer instantanément les pics de tension.`,
   },
   {
     id:'sense', em:'🚦', stage:'Measurement',
     title:'The toll booth',
     what:'Shunt resistor + current-sense amplifier',
     refs:(m,ch)=>[...m.shared.shunts, m.shared.ina],
-    blurb:`To know how hard the motors work, a shunt resistor (0.2 milliohms) sits in the battery feed, paired with an amplifier to measure current via Kelvin sensing.`,
+    blurb:`Le système de mesure centralisé surveille le flux de courant global traversant l'alimentation principale via les shunts et l'amplificateur dédié.`,
   },
   {
     id:'driver', em:'💪', stage:'Control',
     title:'The muscle chip',
-    what:'Gate driver + bootstrap caps + gate resistors',
-    refs:(m,ch)=>[ch.driver, ...ch.bootstrap, ...ch.gate_res],
-    blurb:`A driver chip slams charge into the MOSFET gates and rips it back out so the switches snap fully on and off instantly.`,
+    what:'Gate drivers & bootstrap circuits',
+    refs:(m,ch)=>[...m.channels.flatMap(c => [...c.driver, ...c.bootstrap, ...c.gate_res].filter(Boolean))],
+    blurb:`Chaque quadrant possède son propre pilote de grille et ses composants associés pour saturer et commuter les transistors à ultra-haute fréquence.`,
   },
   {
     id:'mcu', em:'🧠', stage:'Control',
-    title:'The brain — one per motor',
-    what:'Microcontroller running open-source AM32 firmware',
-    refs:(m,ch)=>[ch.mcu, ...ch.mcu_support],
-    blurb:`This channel has its own computer running open-source AM32 firmware, performing sensorless commutation by listening to motor back-EMF.`,
+    title:'The brains — 4 independent MCUs',
+    what:'Microcontrollers running open-source AM32',
+    refs:(m,ch)=>[...m.channels.flatMap(c => [c.mcu, ...c.mcu_support])],
+    blurb:`Contrairement aux cartes unifiées classiques, cet OpenESC intègre <b>un microcontrôleur dédié par canal</b> pour gérer la commutation sans capteur en parallèle.`,
   },
   {
     id:'supply', em:'🪣', stage:'Supply',
     title:'Stepping the battery down — twice',
     what:'Buck converter → 10 V, then a regulator → 3.3 V',
     refs:(m,ch)=>[m.shared.buck, m.shared.inductor, m.shared.ldo, ...m.shared.supply_support],
-    blurb:`A buck converter chops battery voltage down to 10V for the gate drivers, followed by an LDO regulator providing a clean 3.3V for the brain.`,
+    blurb:`La section d'alimentation partagée abaisse la tension de la batterie pour alimenter d'une part les drivers de grille et d'autre part la logique de calcul.`,
   },
   {
     id:'input', em:'🚪', stage:'Input',
     title:'The front door',
     what:'Battery pads, signal connector, surge protection',
     refs:(m,ch)=>[m.shared.connector, ...m.shared.tvs, ...(m.placement.U3?['U3']:[])],
-    blurb:`Fat pads take the battery, TVS diodes absorb electrostatic surges, and a small connector carries throttle signals and telemetry from the flight controller.`,
+    blurb:`Les connexions principales reçoivent l'accu de propulsion, tandis que les diodes TVS protègent l'ensemble contre les transitoires et pics parasites.`,
   },
   {
     id:'tile', em:'🧩', stage:'The 4-in-1',
     title:'Now do that four times',
-    what:'One channel per motor, tiled into quadrants',
+    what:'Complete assembled 4-in-1 layout',
     refs:()=>null,
-    blurb:`A 4-in-1 isn't one controller — it's <b>four complete ESCs sharing a board</b>. Switches live on the edges for cooling; brains sit safely in the middle.`,
+    blurb:`Tous les composants des 4 quadrants sont désormais en place, unifiant puissance et contrôle sur les deux faces du circuit imprimé.`,
   },
 ];
 
@@ -252,7 +252,7 @@ function showStep(idx) {
   document.getElementById('cBlurb').innerHTML = step.blurb;
   document.getElementById('cStage').textContent = step.stage;
   document.getElementById('cFace').textContent = flipped ? 'Bottom face' : 'Top face';
-  document.getElementById('cRefs').textContent = refs ? `on the board: ${refs.join(' ')}` : '+159 more parts: channels 2–4 and the rest of the ceramic bank';
+  document.getElementById('cRefs').textContent = refs ? `on the board: ${refs.join(' ')}` : 'Tous les composants assemblés (4 canaux complets)';
 
   const op = (idx === STEPS.length - 1) ? 1.0 : 0.34;
   boardMats.forEach(m => m.opacity = op);
