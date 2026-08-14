@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenESC — Build Visualizer · Électronique</title>
+<style>
+:root{--bg:#0b1622;--fg:#eaf4fb;--accent:#37e0a0;--panel:#0e2236;--orange:#ffb068;--blue:#00A7E1}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--fg);height:100vh;display:flex;flex-direction:column}
+header{padding:12px 18px;border-bottom:1px solid #1c3950;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:linear-gradient(180deg,#0e2236,#0b1622)}
+h1{font-size:1.15rem;font-weight:800}
+h1 small{font-weight:500;opacity:.7;font-size:.8rem}
+.btn{background:#16304a;border:1px solid #1c3950;color:var(--fg);padding:7px 14px;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600;transition:0.2s}
+.btn:hover{background:#1c3950;transform:translateY(-1px)}
+.btn.green{background:var(--accent);color:#04222f;border-color:var(--accent)}
+.btn.orange{background:var(--orange);color:#2a1500;border-color:var(--orange)}
+.btn.blue{background:var(--blue);color:#04222f;border-color:var(--blue)}
+main{flex:1;display:flex;overflow:hidden}
+#sidebar{width:280px;background:var(--panel);border-right:1px solid #1c3950;padding:14px;overflow-y:auto;font-size:.84rem}
+#viewport{flex:1;position:relative}
+canvas{display:block;width:100%;height:100%}
+.tip{position:absolute;bottom:10px;left:12px;font-size:.72rem;opacity:.55;pointer-events:none}
+h2{font-size:.9rem;margin:12px 0 6px;color:#9fc0d6;font-weight:700}
+ul{list-style:none}
+li{padding:6px 8px;border-bottom:1px solid #16304a;display:flex;justify-content:space-between;align-items:center;gap:6px;cursor:pointer;border-radius:6px;transition:background 0.15s}
+li:hover{background:#16304a;color:var(--accent)}
+.badge{background:#37e0a033;color:var(--accent);padding:2px 6px;border-radius:4px;font-size:.68rem;font-weight:700}
+.hint{font-size:.75rem;opacity:.75;line-height:1.45;margin-top:10px;color:#9fc0d6}
+a{color:var(--blue)}
+.view-btns{position:absolute;top:12px;right:12px;display:flex;gap:4px}
+.view-btns button{background:#16304a;border:1px solid #1c3950;color:var(--fg);padding:5px 10px;border-radius:6px;cursor:pointer;font-size:.75rem;font-weight:600}
+.view-btns button.on{background:var(--blue);border-color:var(--blue);color:#04222f}
+#status{position:absolute;top:12px;left:12px;font-size:.78rem;opacity:.95;background:#0e2236ee;padding:6px 12px;border-radius:8px;border:1px solid #1c3950;pointer-events:none}
+
+/* Panneau d'information latéral au clic */
+#part-info { display: none; }
+.spec-box { color: var(--orange); font-size: 0.78rem; margin: 8px 0; font-weight: bold; line-height: 1.4; }
+</style>
+
+<!-- Chargement de GSAP via CDN global -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+</head>
+<body>
+<header>
+  <h1>OpenESC <small>— Simulateur de Montage Électronique</small></h1>
+  <button class="btn green" id="btn-assemble">▶ Assembler</button>
+  <button class="btn orange" id="btn-explode">Vue éclatée</button>
+  <button class="btn blue" id="btn-flat">Composants à plat</button>
+  <button class="btn" id="btn-reset">Reset Caméra</button>
+</header>
+<main>
+  <aside id="sidebar">
+    <div id="default-list">
+      <h2>Composants OpenESC</h2>
+      <ul id="part-list"></ul>
+      <p class="hint">
+        Clique sur un composant de la liste ou du circuit pour afficher son rôle (MOSFETs, MCU, Condensateurs, etc.).
+      </p>
+    </div>
+
+    <div id="part-info">
+      <button class="btn" id="btn-back-list" style="width:100%; margin-bottom:12px;">← Retour à la liste</button>
+      <h2 id="info-title" style="color:var(--accent); font-size:1.05rem;">Composant</h2>
+      <div class="badge" id="info-step" style="display:inline-block; margin-bottom:6px;">Zone PCB</div>
+      <div class="spec-box" id="info-spec">Specs...</div>
+      <p class="hint" id="info-blurb" style="opacity:1; font-size:0.8rem;">Description...</p>
+    </div>
+  </aside>
+  <div id="viewport">
+    <div id="status">Chargement des composants OpenESC…</div>
+    <div class="view-btns">
+      <button data-view="iso" class="on">ISO</button>
+      <button data-view="top">Dessus</button>
+      <button data-view="front">Avant</button>
+    </div>
+    <div class="tip">Architecture ouverte · Open Hardware ESC</div>
+  </div>
+</main>
+
+<script type="importmap">
+{"imports":{
+  "three":"https://unpkg.com/three@0.163.0/build/three.module.js",
+  "three/addons/":"https://unpkg.com/three@0.163.0/examples/jsm/"
+}}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+
+// Tu pourras pointer vers un manifest dédié à l'ESC (ex: ./assets/openesc-assembly/)
+const BASE = './assets/openesc-assembly/';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b1622);
+const camera = new THREE.PerspectiveCamera(40, 1, 0.001, 10);
+camera.position.set(0.25, 0.2, 0.25);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+document.getElementById('viewport').appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.target.set(0, 0, 0);
+controls.minDistance = 0.05;
+controls.maxDistance = 1.0;
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+scene.add(new THREE.HemisphereLight(0xbcd4ff, 0x0a0a12, 0.6));
+const dir = new THREE.DirectionalLight(0xffffff, 1.35);
+dir.position.set(0.4, 0.8, 0.3);
+scene.add(dir);
+scene.add(new THREE.AmbientLight(0x404860, 0.35));
+
+const grid = new THREE.GridHelper(0.4, 20, 0x1c3950, 0x122536);
+grid.position.y = -0.02;
+scene.add(grid);
+
+const root = new THREE.Group();
+scene.add(root);
+
+const loader = new GLTFLoader();
+loader.setMeshoptDecoder(MeshoptDecoder);
+
+const parts = {};
+const origPos = {};
+const explodeDir = {};
+const explodeDist = {};
+const compData = {};      
+const raycastTargets = []; 
+let loaded = 0;
+let selectedPartId = null;
+
+const statusEl = document.getElementById('status');
+const partList = document.getElementById('part-list');
+
+function tuneMaterial(mat) {
+  if (!mat) return;
+  if (mat.isMeshStandardMaterial || mat.isMeshPhysicalMaterial) {
+    mat.metalness = Math.min(mat.metalness ?? 0.2, 0.35);
+    mat.roughness = Math.max(mat.roughness ?? 0.5, 0.4);
+    mat.envMapIntensity = 0.65;
+  }
+}
+
+async function loadAll() {
+  try {
+    const res = await fetch(BASE + 'manifest.json');
+    const manifest = await res.json();
+    const comps = manifest.components;
+
+    for (const c of comps) {
+      compData[c.id] = c;
+
+      const li = document.createElement('li');
+      li.innerHTML = `<span>${c.label || c.id}</span> <span class="badge">Zone ${c.step}</span>`;
+      li.onclick = () => selectPart(c.id);
+      partList.appendChild(li);
+
+      const meshPath = c.parts?.[0]?.mesh;
+      if (!meshPath) continue;
+
+      const url = BASE + meshPath;
+      try {
+        const gltf = await new Promise((resolve, reject) => {
+          loader.load(url, resolve, undefined, reject);
+        });
+        const obj = gltf.scene;
+        
+        obj.userData.compId = c.id;
+
+        obj.traverse(ch => {
+          if (ch.isMesh) {
+            ch.castShadow = true;
+            ch.receiveShadow = true;
+            if (Array.isArray(ch.material)) ch.material.forEach(tuneMaterial);
+            else tuneMaterial(ch.material);
+
+            ch.userData.origEmissive = ch.material.emissive ? ch.material.emissive.clone() : new THREE.Color(0x000000);
+          }
+        });
+
+        const t = c.parts[0].transform;
+        if (t && t.length === 16) {
+          const m = new THREE.Matrix4().fromArray(t);
+          obj.applyMatrix4(m);
+        }
+
+        root.add(obj);
+        parts[c.id] = obj;
+        raycastTargets.push(obj);
+
+        origPos[c.id] = obj.position.clone();
+        explodeDir[c.id] = new THREE.Vector3(...(c.explode || [0,1,0])).normalize();
+        explodeDist[c.id] = c.explodeDist || 0.08;
+
+        loaded++;
+        statusEl.textContent = `Chargé ${loaded}/${comps.length} composants…`;
+      } catch (e) {
+        console.warn('fail', c.id, e);
+      }
+    }
+    statusEl.textContent = `✓ ${loaded} composants chargés`;
+    setTimeout(() => { statusEl.style.opacity = '0.6'; }, 2500);
+  } catch (e) {
+    statusEl.textContent = 'Erreur chargement manifeste ESC: ' + e.message;
+    console.error(e);
+  }
+}
+
+loadAll();
+
+function transitionLayout(mode) {
+  const keys = Object.keys(parts);
+  keys.forEach((id, index) => {
+    const obj = parts[id];
+    const p = origPos[id];
+    let tx = p.x, ty = p.y, tz = p.z;
+
+    if (mode === 'explode') {
+      const dir = explodeDir[id] || new THREE.Vector3(0,1,0);
+      const dist = explodeDist[id] || 0.08;
+      tx = p.x + dir.x * dist;
+      ty = p.y + dir.y * dist;
+      tz = p.z + dir.z * dist;
+    } 
+    else if (mode === 'flat') {
+      const cols = 4;
+      const spacing = 0.06;
+      const col = index % cols;
+      const row = Math.floor(index / cols);
+      
+      tx = (col - Math.floor(cols / 2)) * spacing;
+      ty = 0.01; 
+      tz = (row - Math.floor(keys.length / cols / 2)) * spacing;
+    }
+
+    gsap.to(obj.position, {
+      x: tx, y: ty, z: tz,
+      duration: 1.2,
+      ease: "power3.inOut"
+    });
+  });
+}
+
+document.getElementById('btn-assemble').onclick = () => transitionLayout('assemble');
+document.getElementById('btn-explode').onclick = () => transitionLayout('explode');
+document.getElementById('btn-flat').onclick = () => transitionLayout('flat');
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+document.getElementById('viewport').addEventListener('click', (event) => {
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObjects(raycastTargets, true);
+
+  if (intersects.length > 0) {
+    let curr = intersects[0].object;
+    let foundId = null;
+    while (curr) {
+      if (curr.userData && curr.userData.compId) {
+        foundId = curr.userData.compId;
+        break;
+      }
+      curr = curr.parent;
+    }
+    if (foundId) selectPart(foundId);
+  } else {
+    deselectPart();
+  }
+});
+
+function selectPart(id) {
+  deselectPart();
+  selectedPartId = id;
+  const obj = parts[id];
+  const data = compData[id];
+  if (!obj || !data) return;
+
+  obj.traverse(ch => {
+    if (ch.isMesh && ch.material) {
+      ch.material.emissive.setHex(0x37e0a0);
+      ch.material.emissiveIntensity = 0.6;
+    }
+  });
+
+  document.getElementById('default-list').style.display = 'none';
+  document.getElementById('part-info').style.display = 'block';
+
+  document.getElementById('info-title').textContent = data.label || id;
+  document.getElementById('info-step').textContent = `Zone ${data.step}`;
+  document.getElementById('info-spec').textContent = data.spec || "Composant OpenESC";
+  document.getElementById('info-blurb').textContent = data.blurb || "Description technique à venir.";
+}
+
+function deselectPart() {
+  if (selectedPartId && parts[selectedPartId]) {
+    parts[selectedPartId].traverse(ch => {
+      if (ch.isMesh && ch.userData.origEmissive) {
+        ch.material.emissive.copy(ch.userData.origEmissive);
+        ch.material.emissiveIntensity = 1;
+      }
+    });
+  }
+  selectedPartId = null;
+  document.getElementById('default-list').style.display = 'block';
+  document.getElementById('part-info').style.display = 'none';
+}
+
+document.getElementById('btn-back-list').onclick = deselectPart;
+
+function resize() {
+  const vp = document.getElementById('viewport');
+  const w = vp.clientWidth, h = vp.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+window.addEventListener('resize', resize);
+resize();
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+document.getElementById('btn-reset').onclick = () => {
+  gsap.to(camera.position, { x: 0.25, y: 0.2, z: 0.25, duration: 1 });
+  controls.target.set(0, 0, 0);
+  controls.update();
+  deselectPart();
+};
+
+document.querySelectorAll('.view-btns button').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('.view-btns button').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    const v = b.dataset.view;
+    if (v === 'top') { gsap.to(camera.position, {x:0, y:0.35, z:0.001, duration:1}); controls.target.set(0,0,0); }
+    else if (v === 'front') { gsap.to(camera.position, {x:0, y:0.05, z:0.3, duration:1}); controls.target.set(0,0,0); }
+    else { gsap.to(camera.position, {x:0.25, y:0.2, z:0.25, duration:1}); controls.target.set(0,0,0); }
+  };
+});
+</script>
+</body>
+</html>
