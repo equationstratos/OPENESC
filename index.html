@@ -13,6 +13,7 @@
   #viewport{width:100%;height:100%;position:relative}
   canvas{display:block;touch-action:none}
 
+  /* Top bar */
   #top{position:fixed;top:0;left:0;right:0;z-index:5;padding:14px 18px;
     background:linear-gradient(180deg,#0b1622f2,#0b162200);pointer-events:none}
   #topInner{display:flex;align-items:center;gap:14px;max-width:1180px;margin:0 auto}
@@ -26,6 +27,7 @@
   #bar{max-width:1180px;margin:11px auto 0;height:6px;border-radius:4px;background:#16304a;overflow:hidden}
   #barFill{height:100%;width:0;border-radius:4px;background:linear-gradient(90deg,var(--cyan),var(--ok));transition:width .5s cubic-bezier(.2,.9,.25,1)}
 
+  /* Teaching card */
   #card{position:fixed;left:18px;bottom:18px;z-index:6;width:min(400px,calc(100vw - 36px));
     background:linear-gradient(180deg,#0e2236f6,#0a1825f6);border:1px solid #1c3950;border-radius:18px;
     padding:16px 18px 15px;box-shadow:0 16px 44px #0009;border-left:4px solid var(--cyan);max-height:80vh;overflow-y:auto}
@@ -40,6 +42,7 @@
     border-radius:999px;padding:4px 9px;background:#123049;color:#8fc2e0;border:1px solid #1d4362}
   #card .refs{margin-top:8px;font:700 11px ui-monospace,Menlo,monospace;color:#6f96b1;line-height:1.5;word-break:break-word}
 
+  /* Controls */
   #ctl{position:fixed;right:18px;bottom:18px;z-index:6;display:flex;gap:9px;align-items:center}
   .btn{border:1px solid #244863;background:#102a40e6;color:var(--ink);border-radius:11px;
     padding:12px 16px;font:800 13.5px Inter;cursor:pointer;transition:.12s;white-space:nowrap}
@@ -48,6 +51,7 @@
   .btn.pri{background:linear-gradient(180deg,#0d84b8,#0a6d99);border-color:#1ba0dc;color:#fff}
   .btn.sm{padding:10px 12px;font-size:13px}
 
+  /* View buttons */
   #viewBtns{position:fixed;top:80px;right:18px;z-index:6;display:flex;gap:6px}
   #status{position:fixed;top:82px;left:50%;transform:translateX(-50%);z-index:5;
     font:800 12.5px Inter;color:#bfe0f2;background:#0e2438dd;border:1px solid #244863;border-radius:999px;
@@ -68,6 +72,10 @@
   <div id="status">Chargement de la carte et des pièces...</div>
 
   <div id="viewBtns">
+    <!-- NOUVEAU : Checkbox Auto-spin -->
+    <label class="btn sm" style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+      <input type="checkbox" id="chkSpin" style="margin:0; cursor:pointer; accent-color: var(--cyan);"> Auto-spin
+    </label>
     <button class="btn sm" id="btnIso">ISO</button>
     <button class="btn sm" id="btnFront">Front</button>
     <button class="btn sm" id="btnFlip">🔄 Flip</button>
@@ -167,20 +175,17 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0b1622);
 const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.001, 50);
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; controls.dampingFactor = 0.08;
-// Préparation pour l'auto-rotation à la fin
+controls.enableDamping = true; 
+controls.dampingFactor = 0.08;
 controls.autoRotateSpeed = 2.0;
+controls.autoRotate = false; // Désactivé par défaut
 
-// ==========================================
-// 💡 NOUVEL ÉCLAIRAGE (Adieu les zones d'ombre)
-// ==========================================
-scene.add(new THREE.AmbientLight(0xffffff, 0.3)); // Lumière d'ambiance légère
-scene.add(new THREE.HemisphereLight(0xdcefff, 0x2f3f52, 0.4)); // Lumière ciel/sol
+scene.add(new THREE.HemisphereLight(0xdcefff, 0x2f3f52, 0.65));
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 
-// On attache la lumière principale À LA CAMÉRA !
-// Ainsi, comme une lampe frontale, la lumière suit ton regard
+// La lampe frontale attachée à la caméra (pour ne jamais avoir d'ombre)
 scene.add(camera);
-const headLight = new THREE.DirectionalLight(0xfff4e2, 1.5);
+const headLight = new THREE.DirectionalLight(0xfff4e2, 1.2);
 headLight.position.set(0, 0, 1);
 camera.add(headLight);
 
@@ -269,11 +274,14 @@ function showStep(idx) {
   const op = (idx === STEPS.length - 1) ? 1.0 : 0.35;
   boardMats.forEach(m => m.opacity = op);
 
+  // Auto-rotation logique
+  const chkSpin = document.getElementById('chkSpin');
   if (idx === STEPS.length - 1) {
     partsRoot.traverse(o => { o.visible = true; });
-    // 🌀 AMÉLIORATION : Auto-rotation à la dernière étape !
+    chkSpin.checked = true;
     controls.autoRotate = true;
   } else {
+    chkSpin.checked = false;
     controls.autoRotate = false;
     partsRoot.traverse(o => { 
       if (o.name && !o.name.startsWith('=>')) o.visible = false; 
@@ -297,6 +305,11 @@ function showStep(idx) {
   document.getElementById('btnNext').textContent = (idx === STEPS.length - 1) ? 'Finish 🏆' : 'Next →';
 }
 
+// 🔄 GESTION DE LA CHECKBOX "AUTO-SPIN"
+document.getElementById('chkSpin').addEventListener('change', (e) => {
+  controls.autoRotate = e.target.checked;
+});
+
 document.getElementById('btnNext').onclick = () => {
   if (stepIndex < STEPS.length - 1) showStep(stepIndex + 1);
   else location.reload();
@@ -311,10 +324,8 @@ document.getElementById('btnFront').onclick = () => {
   camera.position.set(0, 0, 0.22); controls.target.set(0, 0, 0);
 };
 
-// 🔄 AMÉLIORATION : Le vrai Flip physique 3D !
 document.getElementById('btnFlip').onclick = () => {
   flipped = !flipped;
-  // Fait pivoter le groupe entier (la PCB et ses composants) à 180° avec un effet élastique
   gsap.to(ROOT.rotation, {
     x: flipped ? Math.PI : 0,
     duration: 1.2,
